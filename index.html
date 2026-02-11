@@ -1,0 +1,764 @@
+<!doctype html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Para ti ❤️</title>
+<style>
+  :root{
+    --bgA:#0b0710; --bgB:#1a0f1f;
+    --paper:#f6ede5; --ink:#2b2b2b; --muted:#5d5d5d;
+    --shadow:0 28px 90px rgba(0,0,0,.55);
+  }
+  *{box-sizing:border-box}
+  html,body{height:100%;margin:0}
+  body{
+    display:grid; place-items:center; overflow:hidden;
+    background:
+      radial-gradient(1000px 700px at 25% 75%, rgba(255,80,160,.16), transparent 55%),
+      radial-gradient(1200px 900px at 65% 15%, rgba(255,140,210,.14), transparent 55%),
+      linear-gradient(180deg,var(--bgB),var(--bgA));
+    font-family:system-ui,-apple-system,Segoe UI,Roboto,Helvetica,Arial;
+  }
+  .card{
+    width:min(1100px,95vw);
+    aspect-ratio:16/9;
+    background:var(--paper);
+    border-radius:24px;
+    box-shadow:var(--shadow);
+    overflow:hidden;
+    padding:26px;
+    display:grid;
+    grid-template-columns:1.05fr .95fr;
+    gap:22px;
+    position:relative;
+  }
+  .left{
+    opacity:0; transform:translateY(10px);
+    transition:opacity .7s ease, transform .7s ease;
+    display:flex; flex-direction:column;
+    padding:6px 8px;
+  }
+  .left.show{opacity:1;transform:translateY(0)}
+  .letter{
+    white-space:pre-wrap;
+    color:var(--ink);
+    font-size:18px;
+    line-height:1.45;
+    min-height:270px;
+  }
+  .cursor{
+    display:inline-block; width:.65ch; height:1.05em;
+    background:var(--ink); border-radius:2px;
+    transform:translateY(.12em);
+    animation:blink 1s steps(1) infinite;
+    margin-left:6px;
+  }
+  @keyframes blink{50%{opacity:0}}
+
+  .meta{
+    margin-top:auto;
+    color:var(--muted);
+    font-weight:800;
+    font-variant-numeric:tabular-nums;
+    line-height:1.35;
+    /* para que no “salte” el layout cuando aparezca */
+    min-height:88px;
+  }
+  .meta .time{ margin-top:6px; color:#3a3a3a; font-weight:900; }
+  .meta .love{
+    margin-top:10px;
+    font-weight:1000;
+    color:#2f2f2f;
+  }
+
+  /* ✅ TODO el bloque de abajo oculto hasta que termine el texto */
+  #metaWrap{
+  opacity:0;
+  visibility:hidden;
+  transform:translateY(10px);
+  transition:opacity 2.05s ease, transform 2.05s ease, visibility 0s linear 2.05s;
+  will-change: opacity, transform;
+}
+#metaWrap.show{
+  opacity:1;
+  visibility:visible;
+  transform:translateY(0);
+  transition:opacity 2.05s ease, transform 2.05s ease, visibility 0s;
+}
+
+  .canvasWrap{position:relative}
+  canvas{
+    width:100%;height:100%;display:block;border-radius:14px;
+    background:linear-gradient(#fffdfb,#fff7f1);
+    box-shadow:inset 0 -40px 90px rgba(0,0,0,.05);
+  }
+  .groundLine{
+    position:absolute;left:26px;right:26px;bottom:18px;height:2px;
+    background:rgba(120,90,80,.35);border-radius:2px;
+  }
+  @media (max-width:860px){
+    .card{grid-template-columns:1fr; aspect-ratio:4/5}
+    .letter{min-height:220px}
+  }
+</style>
+</head>
+<body>
+  <div class="card">
+    <div class="left" id="left">
+      <div class="letter" id="letter"></div>
+
+      <div class="meta" id="metaWrap">
+        <div>Mi amor por ti comenzó hace:</div>
+        <div class="time" id="counterTime">0 días 00 horas 00 minutos 00 segundos</div>
+        <div class="love">Te amo Tati iiijiji</div>
+      </div>
+    </div>
+
+    <div class="canvasWrap">
+      <canvas id="c"></canvas>
+    </div>
+
+    <div class="groundLine" aria-hidden="true"></div>
+  </div>
+
+<script>
+(() => {
+  const canvas = document.getElementById('c');
+  const ctx = canvas.getContext('2d', { alpha:true });
+
+  const left = document.getElementById('left');
+  const letterEl = document.getElementById('letter');
+  const counterTimeEl = document.getElementById('counterTime');
+  const metaWrap = document.getElementById('metaWrap');
+
+  // ====== CONTADOR (24/09/2024 18:30 España CEST => 16:30 UTC)
+  const START_MS = Date.UTC(2024,8,24,16,30,0);
+  const pad2 = n => String(n).padStart(2,'0');
+  function tickCounter(){
+    const diff = Math.max(0, Date.now() - START_MS);
+    const s = Math.floor(diff/1000);
+    const d = Math.floor(s/86400);
+    const h = Math.floor((s%86400)/3600);
+    const m = Math.floor((s%3600)/60);
+    const ss = s%60;
+    counterTimeEl.textContent = `${d} días ${pad2(h)} horas ${pad2(m)} minutos ${pad2(ss)} segundos`;
+  }
+  tickCounter(); setInterval(tickCounter,1000);
+
+  // ====== TEXTO
+  const MESSAGE = `Dicen que cuando amas de verdad, amas todo... y contigo lo entendí.
+
+Because I love every part of you…
+your curves and your edges,
+your craziness and your doubts,
+your perfect imperfections.
+
+And just as I am with you,
+I want you to be with me — no filters, no fear.
+All of me is for all of you.`;
+
+  let typing = false;
+
+  function resetTextUI(){
+    typing = false;
+    letterEl.textContent = "";
+    metaWrap.classList.remove("show"); // ✅ oculto siempre al inicio
+  }
+
+  function typeText(){
+    if(typing) return;
+    typing = true;
+
+    left.classList.add('show');
+    metaWrap.classList.remove("show"); // ✅ por si acaso
+
+    let i = 0;
+    const step = () => {
+      if(i <= MESSAGE.length){
+        const ch = MESSAGE[i-1] || '';
+        letterEl.innerHTML = MESSAGE.slice(0,i) + '<span class="cursor"></span>';
+        i++;
+        const base = (ch === '\n') ? 140 : 26;
+        setTimeout(step, base + Math.random()*45);
+      } else {
+        // ✅ aquí termina TODO el texto (incluido inglés)
+        letterEl.textContent = MESSAGE;
+
+        // ✅ y SOLO aquí aparece el bloque de abajo
+        metaWrap.classList.add("show");
+      }
+    };
+
+    setTimeout(step, 450);
+  }
+
+  // ====== RESIZE
+  function resize(){
+    const r = canvas.getBoundingClientRect();
+    const dpr = Math.min(2, window.devicePixelRatio || 1);
+    canvas.width = Math.round(r.width*dpr);
+    canvas.height = Math.round(r.height*dpr);
+    ctx.setTransform(dpr,0,0,dpr,0,0);
+  }
+  window.addEventListener('resize', () => { resize(); buildScene(); }, {passive:true});
+  resize();
+
+  const W = () => canvas.getBoundingClientRect().width;
+  const H = () => canvas.getBoundingClientRect().height;
+
+  // ====== UTILS
+  const rand = (a,b) => a + Math.random()*(b-a);
+  const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+  const easeOutCubic = t => 1 - Math.pow(1-t,3);
+  const easeInOutSine = t => -(Math.cos(Math.PI*t)-1)/2;
+
+  // ====== QUAD
+  function quadPoint(p0,cp,p1,t){
+    const u = 1-t;
+    return { x: u*u*p0.x + 2*u*t*cp.x + t*t*p1.x,
+             y: u*u*p0.y + 2*u*t*cp.y + t*t*p1.y };
+  }
+  function quadDeriv(p0,cp,p1,t){
+    const u = 1-t;
+    return {
+      x: 2*u*(cp.x - p0.x) + 2*t*(p1.x - cp.x),
+      y: 2*u*(cp.y - p0.y) + 2*t*(p1.y - cp.y)
+    };
+  }
+
+  // ====== TUBO REALISTA (madera)
+  function drawTube(p0,cp,p1, tProgress, w0, w1, fillCol, hiCol, shCol){
+    const steps = 70;
+    const endT = clamp(tProgress, 0, 1);
+    const n = Math.max(3, Math.floor(steps * endT));
+
+    const leftPts = [];
+    const rightPts = [];
+
+    for(let i=0;i<=n;i++){
+      const t = (i/n) * endT;
+      const p = quadPoint(p0,cp,p1,t);
+      const d = quadDeriv(p0,cp,p1,t);
+      const len = Math.hypot(d.x,d.y) || 1;
+      const nx = -(d.y/len);
+      const ny =  (d.x/len);
+
+      const w = (w0 + (w1 - w0)*t) * (1 - t*0.10);
+      leftPts.push({ x: p.x + nx*w*0.5, y: p.y + ny*w*0.5 });
+      rightPts.push({ x: p.x - nx*w*0.5, y: p.y - ny*w*0.5 });
+    }
+
+    ctx.beginPath();
+    ctx.moveTo(leftPts[0].x, leftPts[0].y);
+    for(const pt of leftPts) ctx.lineTo(pt.x, pt.y);
+    for(let i=rightPts.length-1;i>=0;i--) ctx.lineTo(rightPts[i].x, rightPts[i].y);
+    ctx.closePath();
+    ctx.fillStyle = fillCol;
+    ctx.fill();
+
+    // sombra
+    ctx.save();
+    ctx.globalAlpha = 0.22;
+    ctx.strokeStyle = shCol;
+    ctx.lineWidth = Math.max(1.2, w0*0.10);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    for(let i=0;i<=n;i++){
+      const t = (i/n) * endT;
+      const p = quadPoint(p0,cp,p1,t);
+      const d = quadDeriv(p0,cp,p1,t);
+      const L = Math.hypot(d.x,d.y) || 1;
+      const nx = -(d.y/L);
+      const ny =  (d.x/L);
+      const w = (w0 + (w1 - w0)*t);
+      const x = p.x - nx*w*0.22;
+      const y = p.y - ny*w*0.22;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.restore();
+
+    // luz
+    ctx.save();
+    ctx.globalAlpha = 0.18;
+    ctx.strokeStyle = hiCol;
+    ctx.lineWidth = Math.max(1.0, w0*0.08);
+    ctx.lineCap = "round";
+    ctx.beginPath();
+    for(let i=0;i<=n;i++){
+      const t = (i/n) * endT;
+      const p = quadPoint(p0,cp,p1,t);
+      const d = quadDeriv(p0,cp,p1,t);
+      const L = Math.hypot(d.x,d.y) || 1;
+      const nx = -(d.y/L);
+      const ny =  (d.x/L);
+      const w = (w0 + (w1 - w0)*t);
+      const x = p.x + nx*w*0.22;
+      const y = p.y + ny*w*0.22;
+      if(i===0) ctx.moveTo(x,y); else ctx.lineTo(x,y);
+    }
+    ctx.stroke();
+    ctx.restore();
+  }
+
+  // ====== HEART
+  function heartOutline(t){
+    const x = 16*Math.pow(Math.sin(t),3);
+    const y = 13*Math.cos(t) - 5*Math.cos(2*t) - 2*Math.cos(3*t) - Math.cos(4*t);
+    return {x, y};
+  }
+  function heartInside(nx, ny){
+    const f = Math.pow(nx*nx + ny*ny - 1, 3) - nx*nx*Math.pow(ny,3);
+    return f <= 0;
+  }
+  function drawSmallHeart(x,y,s,fill){
+    ctx.fillStyle = fill;
+    ctx.beginPath();
+    ctx.moveTo(x, y + s*0.35);
+    ctx.bezierCurveTo(x, y, x - s*0.55, y, x - s*0.55, y + s*0.35);
+    ctx.bezierCurveTo(x - s*0.55, y + s*0.75, x, y + s*0.95, x, y + s*1.20);
+    ctx.bezierCurveTo(x, y + s*0.95, x + s*0.55, y + s*0.75, x + s*0.55, y + s*0.35);
+    ctx.bezierCurveTo(x + s*0.55, y, x, y, x, y + s*0.35);
+    ctx.closePath();
+    ctx.fill();
+  }
+
+  // ====== COPA ULTRA RELLENA
+  function buildHeartPoints(cx, cy, scale){
+    const pts = [];
+    const edgeN = 320;
+    const interiorN = 2200;
+    const baseN = 420;
+
+    for(let i=0;i<edgeN;i++){
+      const t = (i/edgeN)*Math.PI*2;
+      const p = heartOutline(t);
+      const nx = p.x/18;
+      const ny = p.y/18;
+      const j = rand(-0.04, 0.02);
+      pts.push({
+        x: cx + nx*scale*(1+j) + rand(-1.6,1.6),
+        y: cy - ny*scale*(1+j) + rand(-1.6,1.6),
+        s: rand(4.6, 9.2),
+        hue: rand(332, 360),
+        sat: rand(62, 92),
+        lig: rand(48, 68),
+        seed: Math.random()*999,
+        order: 0.60 + (i/edgeN)*0.40 + rand(-0.03,0.03)
+      });
+    }
+
+    let tries = 0;
+    const target1 = edgeN + interiorN;
+    while(pts.length < target1 && tries < target1*220){
+      tries++;
+      const nx = rand(-1.25, 1.25);
+      const ny = rand(-1.25, 1.25);
+      if(!heartInside(nx, ny)) continue;
+
+      pts.push({
+        x: cx + nx*scale + rand(-1.2,1.2),
+        y: cy - ny*scale + rand(-1.2,1.2),
+        s: rand(4.3, 9.5),
+        hue: rand(332, 360),
+        sat: rand(58, 88),
+        lig: rand(50, 69),
+        seed: Math.random()*999,
+        order: Math.random()
+      });
+    }
+
+    let tries2 = 0;
+    const target2 = edgeN + interiorN + baseN;
+    while(pts.length < target2 && tries2 < target2*220){
+      tries2++;
+      const nx = rand(-1.15, 1.15);
+      const ny = rand(-1.25, 0.25);
+      if(!heartInside(nx, ny)) continue;
+
+      pts.push({
+        x: cx + nx*scale + rand(-1.2,1.2),
+        y: cy - ny*scale + rand(-1.2,1.2),
+        s: rand(4.2, 9.0),
+        hue: rand(332, 360),
+        sat: rand(60, 90),
+        lig: rand(50, 68),
+        seed: Math.random()*999,
+        order: Math.random()
+      });
+    }
+
+    let minX=Infinity, maxX=-Infinity, minY=Infinity, maxY=-Infinity;
+    for(const p of pts){
+      minX=Math.min(minX,p.x); maxX=Math.max(maxX,p.x);
+      minY=Math.min(minY,p.y); maxY=Math.max(maxY,p.y);
+    }
+    return { cx, cy, scale, pts, minX, maxX, minY, maxY };
+  }
+
+  // ====== HIERBA + TULIPANES
+  function buildGround(base){
+    const groundY = base.y + H()*0.03;
+    const blades = [];
+    const tulips = [];
+
+    const bladeCount = 260;
+    for(let i=0;i<bladeCount;i++){
+      const x = base.x + rand(-230, 230);
+      const h = rand(10, 52);
+      const tilt = rand(-0.70, 0.70);
+      blades.push({
+        x, y: groundY,
+        h, tilt,
+        w: rand(0.8, 2.0),
+        phase: rand(0, Math.PI*2),
+        shade: rand(0.45, 1.0)
+      });
+    }
+
+    const tCount = 26;
+    const palette = [
+      {petal:"#ff3b5f", mid:"#ff1748"},
+      {petal:"#ff5a7a", mid:"#ff2f5a"},
+      {petal:"#ff6fb3", mid:"#ff4aa1"},
+      {petal:"#ff86c6", mid:"#ff5ab2"},
+      {petal:"#ff2f5a", mid:"#ff0f3e"},
+    ];
+
+    for(let i=0;i<tCount;i++){
+      const x = base.x + rand(-170, 170);
+      const stem = rand(22, 82);
+      const tilt = rand(-0.55, 0.55);
+      const bloom = rand(9, 17);
+      const open = rand(0,1);
+      const c = palette[(Math.random()*palette.length)|0];
+
+      tulips.push({
+        x, y: groundY,
+        stem, tilt, bloom, open,
+        petal: c.petal, mid: c.mid,
+        phase: rand(0, Math.PI*2),
+        leafSide: (Math.random()<0.5 ? -1 : 1)
+      });
+    }
+
+    return { groundY, blades, tulips };
+  }
+
+  function drawGrassAndTulips(ground, alpha, now){
+    if(alpha <= 0) return;
+    ctx.save();
+    ctx.globalAlpha = alpha;
+
+    for(const b of ground.blades){
+      const sway = Math.sin(now*0.002 + b.phase) * 0.20;
+      const x0 = b.x;
+      const y0 = b.y;
+      const x1 = x0 + (b.tilt + sway) * (b.h * 0.50);
+      const y1 = y0 - b.h;
+
+      const g = Math.round(115 + 85*b.shade);
+      const r = Math.round(18 + 30*b.shade);
+      const bl = Math.round(50 + 25*b.shade);
+      ctx.strokeStyle = `rgba(${r},${g},${bl},0.92)`;
+      ctx.lineWidth = b.w;
+      ctx.lineCap = "round";
+
+      ctx.beginPath();
+      ctx.moveTo(x0,y0);
+      const cx = (x0 + x1)/2 + (b.tilt+sway)*7;
+      const cy = (y0 + y1)/2 - b.h*0.18;
+      ctx.quadraticCurveTo(cx,cy,x1,y1);
+      ctx.stroke();
+    }
+
+    for(const t of ground.tulips){
+      const sway = Math.sin(now*0.0018 + t.phase) * 0.12;
+      const tilt = t.tilt + sway;
+
+      const x0 = t.x;
+      const y0 = t.y;
+
+      const x1 = x0 + tilt * (t.stem*0.60);
+      const y1 = y0 - t.stem;
+
+      ctx.strokeStyle = "rgba(25,150,85,0.96)";
+      ctx.lineWidth = 3;
+      ctx.lineCap = "round";
+      ctx.beginPath();
+      const cx = (x0 + x1)/2 + tilt*12;
+      const cy = (y0 + y1)/2 - t.stem*0.12;
+      ctx.moveTo(x0,y0);
+      ctx.quadraticCurveTo(cx,cy,x1,y1);
+      ctx.stroke();
+
+      ctx.strokeStyle = "rgba(20,135,75,0.86)";
+      ctx.lineWidth = 2.4;
+
+      const leafY = y0 - t.stem*0.35;
+      ctx.beginPath();
+      ctx.moveTo(x0 + 2, leafY);
+      ctx.quadraticCurveTo(x0 + 24*t.leafSide, leafY - 8, x0 + 12*t.leafSide, leafY - 26);
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(x0 - 1, y0 - t.stem*0.52);
+      ctx.quadraticCurveTo(x0 - 18*t.leafSide, y0 - t.stem*0.58, x0 - 10*t.leafSide, y0 - t.stem*0.74);
+      ctx.stroke();
+
+      ctx.save();
+      ctx.translate(x1, y1);
+      ctx.rotate(tilt*0.18);
+
+      const s = t.bloom;
+      const open = t.open;
+
+      ctx.fillStyle = t.petal;
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(-s*(0.15+open*0.08), -s*(0.95+open*0.18), 0, -s*(1.15+open*0.15));
+      ctx.quadraticCurveTo(s*(0.15+open*0.08), -s*(0.95+open*0.18), 0, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(-s*(0.80+open*0.25), -s*(0.55+open*0.15), -s*(0.58+open*0.12), -s*(0.95+open*0.15));
+      ctx.quadraticCurveTo(-s*(0.05+open*0.10), -s*(0.75+open*0.10), 0, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.beginPath();
+      ctx.moveTo(0, 0);
+      ctx.quadraticCurveTo(s*(0.80+open*0.25), -s*(0.55+open*0.15), s*(0.58+open*0.12), -s*(0.95+open*0.15));
+      ctx.quadraticCurveTo(s*(0.05+open*0.10), -s*(0.75+open*0.10), 0, 0);
+      ctx.closePath();
+      ctx.fill();
+
+      ctx.fillStyle = t.mid;
+      ctx.beginPath();
+      ctx.ellipse(0, -s*(0.25+open*0.08), s*0.18, s*0.12, 0, 0, Math.PI*2);
+      ctx.fill();
+
+      ctx.restore();
+    }
+
+    ctx.restore();
+  }
+
+  // ====== PÉTALOS
+  function wind(t){
+    return Math.sin(t*0.0016)*0.35 + Math.sin(t*0.0037)*0.12;
+  }
+
+  // ====== ESCENA
+  let scene = null;
+
+  function buildScene(){
+    resetTextUI();
+
+    const rW = W(), rH = H();
+
+    const base = { x: rW*0.55, y: rH*0.84 };
+    const trunkTop = { x: base.x + rand(-5,5), y: base.y - rH*0.52 };
+    const trunkCP  = { x: base.x + rand(-10,10), y: base.y - rH*0.26 };
+
+    const fork = quadPoint(base, trunkCP, trunkTop, 0.90);
+
+    const scale = Math.min(rW, rH) * 0.295;
+    let heart = buildHeartPoints(base.x, trunkTop.y - scale*0.08, scale);
+
+    const desiredBottom = fork.y + rH*0.075;
+    const dy = desiredBottom - heart.maxY;
+    for(const p of heart.pts) p.y += dy;
+    heart.minY += dy; heart.maxY += dy; heart.cy += dy;
+
+    const dx = base.x - heart.cx;
+    for(const p of heart.pts) p.x += dx;
+    heart.minX += dx; heart.maxX += dx; heart.cx += dx;
+
+    const topMargin = 10;
+    if(heart.minY < topMargin){
+      const dd = (topMargin - heart.minY);
+      for(const p of heart.pts) p.y += dd;
+      heart.minY += dd; heart.maxY += dd; heart.cy += dd;
+    }
+
+    const bottom = heart.maxY, top = heart.minY;
+    for(const p of heart.pts){
+      const yn = (bottom - p.y) / (bottom - top + 1e-6);
+      const xn = Math.abs(p.x - heart.cx) / (heart.scale*1.05);
+      p.order = clamp(0.06 + yn*0.70 + xn*0.24 + rand(-0.06,0.06), 0, 1);
+    }
+    heart.pts.sort((a,b)=>a.order - b.order);
+
+    // ====== RAMAS (colocación como referencia)
+    const segs = [];
+
+    segs.push({
+      kind:'trunk',
+      p0: base, cp: trunkCP, p1: trunkTop,
+      w0: 23, w1: 9,
+      start: 0.00, dur: 1.55
+    });
+
+    function cpDry(from, to, side){
+      const mid = { x:(from.x+to.x)/2, y:(from.y+to.y)/2 };
+      const ang = Math.atan2(from.y-to.y, to.x-from.x);
+      const perp = ang + Math.PI/2;
+      const len = Math.hypot(to.x-from.x, to.y-from.y);
+      const bend = len * 0.12 * side;
+      return { x: mid.x + Math.cos(perp)*bend, y: mid.y - Math.sin(perp)*bend };
+    }
+    function add(from, to, side, start, dur, w0, w1){
+      const cp = cpDry(from, to, side);
+      segs.push({ kind:'branch', p0: from, cp, p1: to, w0, w1, start, dur });
+      return {from, cp, to};
+    }
+
+    const pMid  = quadPoint(base, trunkCP, trunkTop, 0.76);
+    const pHigh = quadPoint(base, trunkCP, trunkTop, 0.86);
+    const pTop  = trunkTop;
+
+    const L1 = { x: heart.cx - heart.scale*0.82, y: heart.cy + heart.scale*0.10 };
+    const L2 = { x: heart.cx - heart.scale*0.68, y: heart.cy - heart.scale*0.22 };
+    const R1 = { x: heart.cx + heart.scale*0.80, y: heart.cy + heart.scale*0.06 };
+    const R2 = { x: heart.cx + heart.scale*0.64, y: heart.cy - heart.scale*0.26 };
+
+    const mainL = add(pMid, L1, -1, 0.92, 1.20, 16, 4.2);
+    const pivotL = quadPoint(mainL.from, mainL.cp, mainL.to, 0.62);
+    add(pivotL, L2, -1, 1.20, 0.95, 7.0, 2.0);
+
+    add(pMid, R1, +1, 0.92, 1.20, 16, 4.2);
+    const upperR = add(pHigh, R2, +1, 1.06, 1.05, 11.0, 3.0);
+
+    const tip1 = { x: pTop.x - heart.scale*0.25, y: pTop.y - heart.scale*0.25 };
+    const tip2 = { x: pTop.x + heart.scale*0.25, y: pTop.y - heart.scale*0.26 };
+    const tip3 = { x: pTop.x + heart.scale*0.42, y: pTop.y - heart.scale*0.10 };
+
+    add(pTop, tip1, -1, 1.26, 0.85, 6.0, 1.6);
+    add(pTop, tip2, +1, 1.26, 0.85, 6.0, 1.6);
+
+    const pivotR = quadPoint(upperR.from, upperR.cp, upperR.to, 0.62);
+    add(pivotR, tip3, +1, 1.34, 0.80, 4.8, 1.4);
+
+    const ground = buildGround(base);
+
+    scene = { heart, segs, ground, petals: [], start: performance.now(), typed:false };
+  }
+
+  function spawnPetal(){
+    const p = scene.heart.pts[(Math.random()*scene.heart.pts.length)|0];
+    scene.petals.push({
+      x: p.x + rand(-18,18),
+      y: p.y + rand(-18,18),
+      vx: rand(-0.35,0.35),
+      vy: rand(0.65,1.35),
+      r: rand(0,Math.PI*2),
+      vr: rand(-0.04,0.04),
+      s: rand(5.0, 10.0),
+      hue: rand(332, 360),
+      sat: rand(60, 88),
+      lig: rand(52, 70),
+      life: 0,
+      max: rand(240, 380),
+    });
+    if(scene.petals.length > 170) scene.petals.splice(0, scene.petals.length-170);
+  }
+
+  buildScene();
+
+  function loop(now){
+    const t = (now - scene.start) / 1000;
+
+    const trunkP  = clamp(t/1.60, 0, 1);
+    const branchP = clamp((t-0.70)/1.65, 0, 1);
+    const leavesP = clamp((t-1.85)/2.05, 0, 1);
+
+    const groundP = clamp((t-0.90)/1.20, 0, 1);
+    const petalsOn = (leavesP >= 1);
+
+    const rW = W(), rH = H();
+
+    ctx.clearRect(0,0,canvas.width,canvas.height);
+    const bg = ctx.createLinearGradient(0,0,0,rH);
+    bg.addColorStop(0,'rgba(255,255,255,0.92)');
+    bg.addColorStop(1,'rgba(248,240,233,0.98)');
+    ctx.fillStyle = bg;
+    ctx.fillRect(0,0,rW,rH);
+
+    const woodFillTrunk = "#6a3b22";
+    const woodFillBranch = "#6b3e26";
+    const woodHi = "rgba(255,255,255,0.9)";
+    const woodSh = "rgba(20,10,8,0.9)";
+
+    for(const seg of scene.segs){
+      const local = clamp((t - seg.start) / seg.dur, 0, 1);
+      const gate = (seg.kind === 'trunk') ? trunkP : branchP;
+      const p = easeOutCubic(clamp(local * (0.28 + gate*0.92), 0, 1));
+      if(p <= 0) continue;
+
+      const fill = (seg.kind === 'trunk') ? woodFillTrunk : woodFillBranch;
+      drawTube(seg.p0, seg.cp, seg.p1, p, seg.w0, seg.w1, fill, woodHi, woodSh);
+    }
+
+    const heart = scene.heart;
+    const showN = Math.floor(heart.pts.length * easeInOutSine(leavesP));
+    const solid = leavesP >= 1;
+
+    for(let i=0;i<showN;i++){
+      const p = heart.pts[i];
+      const bob  = solid ? 0 : Math.sin(now*0.002 + p.seed)*0.65;
+      const sway = solid ? 0 : Math.cos(now*0.0016 + p.seed)*0.50;
+      const s = p.s * (solid ? 1 : (0.92 + 0.06*Math.sin(now*0.0022 + p.seed)));
+      const fill = `hsl(${p.hue},${p.sat}%,${p.lig}%)`;
+      ctx.globalAlpha = 0.97;
+      drawSmallHeart(p.x + sway, p.y + bob, s, fill);
+    }
+    ctx.globalAlpha = 1;
+
+    drawGrassAndTulips(scene.ground, groundP, now);
+
+    if(petalsOn){
+      if(Math.random() < 0.72) spawnPetal();
+      for(let i=scene.petals.length-1;i>=0;i--){
+        const P = scene.petals[i];
+        P.life++;
+        const w = wind(now);
+        P.vx += w*0.02;
+        P.vy += 0.01;
+        P.vx *= 0.995;
+        P.vy *= 0.998;
+        P.x += P.vx;
+        P.y += P.vy;
+        P.r += P.vr;
+
+        const a = 1 - (P.life / P.max);
+        if(a <= 0 || P.y > rH*0.985){ scene.petals.splice(i,1); continue; }
+
+        ctx.save();
+        ctx.translate(P.x, P.y);
+        ctx.rotate(P.r);
+        ctx.globalAlpha = a*0.95;
+        drawSmallHeart(0,0,P.s, `hsl(${P.hue},${P.sat}%,${P.lig}%)`);
+        ctx.restore();
+      }
+      ctx.globalAlpha = 1;
+    }
+
+    // ✅ Empieza a escribir solo cuando acaba la copa
+    if(!scene.typed && leavesP >= 1){
+      scene.typed = true;
+      setTimeout(typeText, 550);
+    }
+
+    requestAnimationFrame(loop);
+  }
+
+  requestAnimationFrame(loop);
+})();
+</script>
+</body>
+</html>
